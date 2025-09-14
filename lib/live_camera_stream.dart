@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:dio/dio.dart';
 
 class LiveCameraStream extends StatefulWidget {
   const LiveCameraStream({super.key});
@@ -8,13 +9,16 @@ class LiveCameraStream extends StatefulWidget {
   State<LiveCameraStream> createState() => _LiveCameraStreamState();
 }
 
-
 class _LiveCameraStreamState extends State<LiveCameraStream> {
   final _localRenderer = RTCVideoRenderer();
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
 
   bool _isStreaming = false;
+  final Dio _dio = Dio();
+
+  final String backendUrl =
+      "https://webhook.site/18509965-c5e2-4dca-a4ea-12cbc7f5c4b2";
 
   @override
   void initState() {
@@ -47,16 +51,39 @@ class _LiveCameraStreamState extends State<LiveCameraStream> {
       _peerConnection?.addTrack(track, _localStream!);
     }
 
-    _peerConnection?.onIceCandidate = (candidate) {
+    _peerConnection?.onIceCandidate = (candidate) async {
       print('ICE candidate: ${candidate.toMap()}');
-      // TODO: ابعته للـ backend
+
+      try {
+        await _dio.post(
+          backendUrl,
+          data: {
+            "type": "candidate",
+            "candidate": candidate.toMap(),
+          },
+        );
+      } catch (e) {
+        print("Error sending ICE candidate: $e");
+      }
     };
 
     final offer = await _peerConnection!.createOffer();
     await _peerConnection!.setLocalDescription(offer);
 
     print('Local SDP offer: ${offer.sdp}');
-    // TODO: ابعت الـ offer للـ backend
+
+    try {
+      await _dio.post(
+        backendUrl,
+        data: {
+          "type": "offer",
+          "sdp": offer.sdp,
+          "sdpType": offer.type,
+        },
+      );
+    } catch (e) {
+      print("Error sending offer: $e");
+    }
 
     setState(() => _isStreaming = true);
   }
